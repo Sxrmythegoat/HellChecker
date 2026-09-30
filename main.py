@@ -256,6 +256,7 @@ async def get_account_details(session, result, user_id, proxy):
                     created_date = datetime.fromisoformat(created.replace("Z", "+00:00"))
                     age_days = (datetime.now() - created_date.replace(tzinfo=None)).days
                     result["account_age"] = age_days
+
 except Exception as e:
         print(f"Details error: {e}")
 
